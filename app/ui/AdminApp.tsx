@@ -243,6 +243,35 @@ export function AdminApp() {
     }
   }, [session, storeSession]);
 
+  const refreshAccessToken = useCallback(async (): Promise<Session> => {
+    const refreshToken = refreshTokenRef.current;
+    if (!session || !refreshToken) {
+      await logout();
+      throw new ApiError(401, "Sua sessão expirou. Entre novamente.");
+    }
+
+    try {
+      const response = await api<{
+        data: { accessToken: string; refreshToken: string };
+      }>("/auth/refresh", {
+        method: "POST",
+        body: JSON.stringify({ refreshToken }),
+      });
+      refreshTokenRef.current = response.data.refreshToken;
+      const next: Session = {
+        ...session,
+        accessToken: response.data.accessToken,
+        adminAccessToken: undefined,
+        adminExpiresAt: undefined,
+      };
+      storeSession(next);
+      return next;
+    } catch (error) {
+      await logout();
+      throw error;
+    }
+  }, [logout, session, storeSession]);
+
   useEffect(() => {
     const saved = readSession();
     if (!saved) return setStage("login");
@@ -466,9 +495,10 @@ export function AdminApp() {
     return (
       <AdminGate
         session={session}
-        onSuccess={(token, minutes) => {
+        onRefresh={refreshAccessToken}
+        onSuccess={(token, minutes, refreshedSession) => {
           const next = {
-            ...session,
+            ...refreshedSession,
             adminAccessToken: token,
             adminExpiresAt: Date.now() + minutes * 60_000,
           };
@@ -808,11 +838,13 @@ function Login({ onSuccess }: { onSuccess: (session: LoginSession) => void }) {
 
 function AdminGate({
   session,
+  onRefresh,
   onSuccess,
   onLogout,
 }: {
   session: Session;
-  onSuccess: (token: string, minutes: number) => void;
+  onRefresh: () => Promise<Session>;
+  onSuccess: (token: string, minutes: number, session: Session) => void;
   onLogout: () => void;
 }) {
   const [error, setError] = useState("");
@@ -827,14 +859,19 @@ function AdminGate({
     setBusy(true);
     setError("");
     try {
+      const refreshedSession = await onRefresh();
       const response = await api<{
         data: { adminAccessToken: string; expiresInMinutes: number };
       }>("/auth/admin/access", {
         method: "POST",
-        session,
+        session: refreshedSession,
         body: JSON.stringify({ code }),
       });
-      onSuccess(response.data.adminAccessToken, response.data.expiresInMinutes);
+      onSuccess(
+        response.data.adminAccessToken,
+        response.data.expiresInMinutes,
+        refreshedSession,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Código inválido.");
     } finally {
