@@ -27,12 +27,18 @@ const RAW_BASE_URL =
 const ALLOWED_API_HOSTS = new Set(
   (
     process.env.NEXT_PUBLIC_API_ALLOWED_HOSTS ||
-    "localhost,127.0.0.1,unify-backend-code-unify.a4hn6b.easypanel.host"
+    "localhost,127.0.0.1"
   )
     .split(",")
     .map((host) => host.trim().toLowerCase())
     .filter(Boolean),
 );
+
+try {
+  ALLOWED_API_HOSTS.add(new URL(RAW_BASE_URL).hostname.toLowerCase());
+} catch {
+  // A URL inválida será rejeitada por apiBaseUrl com uma mensagem pública segura.
+}
 
 function apiBaseUrl() {
   const url = new URL(RAW_BASE_URL);
