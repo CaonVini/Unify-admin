@@ -1,0 +1,12 @@
+.git
+.gitignore
+.next
+dist
+node_modules
+outputs
+work
+.env*
+!.env.example
+*.log
+.dev-*.log
+README.md
