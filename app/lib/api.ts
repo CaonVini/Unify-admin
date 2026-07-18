@@ -77,9 +77,19 @@ export async function api<T>(
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
+      const unauthorizedMessage = (() => {
+        if (path === "/auth/login") return "E-mail ou senha inválidos.";
+        if (path === "/auth/admin/access")
+          return "Código administrativo inválido ou expirado.";
+        if (path === "/auth/refresh")
+          return "Sua sessão expirou. Entre novamente.";
+        return session
+          ? "Sua sessão expirou. Entre novamente."
+          : "Não foi possível autenticar esta solicitação.";
+      })();
       const fallback: Record<number, string> = {
         400: "Revise os dados informados.",
-        401: "Sua sessão expirou.",
+        401: unauthorizedMessage,
         403: "Você não tem permissão para esta ação.",
         404: "Registro não encontrado.",
         409: "Este registro possui um conflito.",
